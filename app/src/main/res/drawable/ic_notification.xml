@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Material "water_drop" glyph, used as the monochrome notification icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,2C8.27,6.92 6,10.42 6,13.5 6,16.81 8.69,19.5 12,19.5s6,-2.69 6,-6C18,10.42 15.73,6.92 12,2z" />
+</vector>
