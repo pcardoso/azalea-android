@@ -27,6 +27,24 @@ Release builds are signed with the debug key for now so the APK installs directl
 publishing on Google Play (or to keep sideloaded updates installable across machines), create a
 release keystore and point `signingConfigs` at it.
 
+## Updates
+
+Until the app is on Google Play it is sideloaded from `frontend/public/downloads/sway.apk`. On launch
+(and when you tap Version in Settings) the app fetches `downloads/sway.json` from the web app and, if
+its `versionCode` is higher than the installed one, offers to open the new APK in the browser, which
+downloads it and hands it to the system installer.
+
+To publish a release:
+
+1. Bump `versionCode` (and `versionName`) in `app/build.gradle.kts`.
+2. `./gradlew assembleRelease` and copy the APK to `frontend/public/downloads/sway.apk`.
+3. Update `frontend/public/downloads/sway.json` with the same `versionCode` and `versionName`
+   (optional `notes` are shown in the dialog), then deploy the frontend.
+
+Android only installs an update signed with the same key as the installed app, so keep building
+releases from the machine whose debug keystore signed the first APK (or move to a release keystore,
+which needs one uninstall).
+
 ## Layout
 
 - `data/` – API client, session, diary and exercise-run stores (JSON in app storage, synced to the backend), reminders (AlarmManager), tone synthesis

@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -65,9 +66,14 @@ fun SwayRoot(app: SwayApplication) {
     val backStack by nav.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
     val showTabs = Tab.entries.any { it.route == currentRoute }
+    val update by app.updates.prompt.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         runCatching { app.session.refreshPrescription() }
+    }
+    // Sideloaded builds don't update themselves, so look for a newer APK once per launch.
+    LaunchedEffect(Unit) {
+        runCatching { app.updates.check() }
     }
     // Retry anything still waiting to reach the server whenever the app comes back.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
@@ -119,5 +125,6 @@ fun SwayRoot(app: SwayApplication) {
                 composable(Routes.SESSION) { ExerciseSessionScreen(nav) }
             }
         }
+        update?.let { UpdateDialog(it) }
     }
 }

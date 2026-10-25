@@ -9,6 +9,7 @@ import pt.grok.sway.data.DiaryStore
 import pt.grok.sway.data.ExerciseRunStore
 import pt.grok.sway.data.ReminderSettings
 import pt.grok.sway.data.SessionStore
+import pt.grok.sway.data.UpdateChecker
 
 /** Holds the app-wide stores; screens reach them through [LocalApp]. */
 class SwayApplication : Application() {
@@ -20,6 +21,7 @@ class SwayApplication : Application() {
     lateinit var diary: DiaryStore
     lateinit var exerciseRuns: ExerciseRunStore
     lateinit var reminders: ReminderSettings
+    lateinit var updates: UpdateChecker
 
     override fun onCreate() {
         super.onCreate()
@@ -28,6 +30,7 @@ class SwayApplication : Application() {
         diary = DiaryStore(this, api)
         exerciseRuns = ExerciseRunStore(this, api)
         reminders = ReminderSettings(this)
+        updates = UpdateChecker()
         ReminderSettings.createChannel(this)
     }
 }

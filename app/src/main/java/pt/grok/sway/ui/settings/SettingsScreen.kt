@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.SelfImprovement
+import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -48,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import kotlinx.coroutines.launch
 import pt.grok.sway.BuildConfig
 import pt.grok.sway.R
 import pt.grok.sway.data.ReminderSettings
@@ -64,6 +68,8 @@ fun SettingsScreen(nav: NavController, padding: PaddingValues) {
     val context = LocalContext.current
     val session by app.session.state.collectAsStateWithLifecycle()
     val reminders by app.reminders.state.collectAsStateWithLifecycle()
+    val update by app.updates.available.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
     var editingTime by remember { mutableStateOf<Pair<Int, (Int) -> ReminderSettings.State>?>(null) }
     var permissionDenied by remember { mutableStateOf(false) }
     var pendingChange by remember { mutableStateOf<((ReminderSettings.State) -> ReminderSettings.State)?>(null) }
@@ -166,9 +172,24 @@ fun SettingsScreen(nav: NavController, padding: PaddingValues) {
                 trailingContent = { Icon(Icons.Outlined.ChevronRight, null) },
                 modifier = Modifier.clickable { nav.navigate(Routes.CREDITS) },
             )
+            update?.let { release ->
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.update_available, release.versionName), color = MaterialTheme.colorScheme.primary) },
+                    leadingContent = { Icon(Icons.Outlined.SystemUpdate, null, tint = MaterialTheme.colorScheme.primary) },
+                    modifier = Modifier.clickable { app.updates.showPrompt() },
+                )
+            }
+            // Tapping the version checks for a newer APK on demand.
             ListItem(
                 headlineContent = { Text(stringResource(R.string.version)) },
                 trailingContent = { Text("${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})") },
+                modifier = Modifier.clickable {
+                    scope.launch {
+                        val message = runCatching { app.updates.check() }
+                            .fold({ if (it == null) R.string.update_none else null }, { R.string.update_check_failed })
+                        message?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+                    }
+                },
             )
         }
     }
