@@ -1,5 +1,6 @@
 package pt.grok.sway.ui
 
+import android.net.Uri
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
@@ -27,6 +28,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import pt.grok.sway.R
 import pt.grok.sway.SwayApplication
@@ -52,6 +55,7 @@ private enum class Tab(val route: String, @StringRes val label: Int, val icon: I
 /** Navigation for the whole app: four tabs, plus full-screen forms and the exercise session. */
 object Routes {
     const val SIGN_IN = "signin"
+    fun signIn(code: String) = "signin?code=${Uri.encode(code)}"
     const val ACCOUNT = "account"
     const val CREDITS = "credits"
     const val SESSION = "session"
@@ -60,7 +64,7 @@ object Routes {
 }
 
 @Composable
-fun SwayRoot(app: SwayApplication) {
+fun SwayRoot(app: SwayApplication, linkedCode: MutableStateFlow<String?>) {
     val nav = rememberNavController()
     val scope = rememberCoroutineScope()
     val backStack by nav.currentBackStackEntryAsState()
@@ -74,6 +78,19 @@ fun SwayRoot(app: SwayApplication) {
     // Sideloaded builds don't update themselves, so look for a newer APK once per launch.
     LaunchedEffect(Unit) {
         runCatching { app.updates.check() }
+    }
+    // Opened from a prescription link: show that prescription, signing in with its code first if needed.
+    val pendingCode by linkedCode.collectAsStateWithLifecycle()
+    LaunchedEffect(pendingCode) {
+        val code = pendingCode ?: return@LaunchedEffect
+        linkedCode.value = null
+        nav.navigate(Tab.Exercises.route) {
+            popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+        if (app.session.state.value.code == code) runCatching { app.session.refreshPrescription() }
+        else nav.navigate(Routes.signIn(code))
     }
     // Retry anything still waiting to reach the server whenever the app comes back.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
@@ -119,7 +136,12 @@ fun SwayRoot(app: SwayApplication) {
                 composable("entry/{id}") { entry ->
                     DiaryEntryDetailScreen(nav, entry.arguments?.getString("id").orEmpty())
                 }
-                composable(Routes.SIGN_IN) { SignInScreen(nav) }
+                composable(
+                    "${Routes.SIGN_IN}?code={code}",
+                    arguments = listOf(navArgument("code") { nullable = true; defaultValue = null }),
+                ) { entry ->
+                    SignInScreen(nav, entry.arguments?.getString("code"))
+                }
                 composable(Routes.ACCOUNT) { AccountScreen(nav) }
                 composable(Routes.CREDITS) { CreditsScreen(nav) }
                 composable(Routes.SESSION) { ExerciseSessionScreen(nav) }

@@ -45,10 +45,10 @@ import pt.grok.sway.ui.LocalApp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SignInScreen(nav: NavController) {
+fun SignInScreen(nav: NavController, linkedCode: String? = null) {
     val app = LocalApp.current
     val scope = rememberCoroutineScope()
-    var code by remember { mutableStateOf("") }
+    var code by remember { mutableStateOf(linkedCode.orEmpty()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<Int?>(null) }
     val focus = remember { FocusRequester() }
@@ -74,6 +74,9 @@ fun SignInScreen(nav: NavController) {
             }
         }
     }
+
+    // Came from a prescription link: the code is already filled in, so sign in right away.
+    LaunchedEffect(Unit) { if (linkedCode != null) signIn() }
 
     Scaffold(
         topBar = {
