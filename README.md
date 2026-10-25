@@ -36,11 +36,11 @@ downloads it and hands it to the system installer.
 
 To publish a release:
 
-1. Bump `versionCode` (and `versionName`) in `app/build.gradle.kts`.
-2. Run `./release.sh` (or `./release.sh "What's new"` to set the `notes` shown in the dialog). It
-   builds the release APK, copies it to `frontend/public/downloads/sway.apk` and writes
-   `sway.json` there with the same `versionCode` and `versionName`.
-3. Deploy the frontend.
+1. Run `./release.sh` (add `"What's new"` to set the `notes` shown in the dialog). It bumps
+   `versionCode` and the patch part of `versionName` in `app/build.gradle.kts` (`--minor` or
+   `--major` for bigger bumps), builds the release APK, copies it to
+   `frontend/public/downloads/sway.apk` and writes `sway.json` there to match.
+2. Commit the version bump and deploy the frontend.
 
 Android only installs an update signed with the same key as the installed app, so keep building
 releases from the machine whose debug keystore signed the first APK (or move to a release keystore,

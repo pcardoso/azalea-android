@@ -15,7 +15,7 @@ android {
         targetSdk = 36
         versionCode = 2
         versionName = "1.1.0"
-        // Bump versionCode for every APK published to frontend/public/downloads, and update
+        // release.sh bumps these for every APK published to frontend/public/downloads and writes
         // sway.json there to match: installed apps compare against it on launch.
         buildConfigField("String", "UPDATE_MANIFEST_URL", "\"https://app.gowithsway.com/downloads/sway.json\"")
     }
