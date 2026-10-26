@@ -13,8 +13,8 @@ android {
         applicationId = "pt.grok.android.sway"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.1.1"
+        versionCode = 4
+        versionName = "1.1.2"
         // release.sh bumps these for every APK published to frontend/public/downloads and writes
         // sway.json there to match: installed apps compare against it on launch.
         buildConfigField("String", "UPDATE_MANIFEST_URL", "\"https://app.gowithsway.com/downloads/sway.json\"")
@@ -23,7 +23,8 @@ android {
     buildTypes {
         debug {
             // 10.0.2.2 is the host machine as seen from the Android emulator.
-            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:3100\"")
+            // buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:3100\"")
+            buildConfigField("String", "API_BASE_URL", "\"https://api.gowithsway.com\"")
         }
         release {
             buildConfigField("String", "API_BASE_URL", "\"https://api.gowithsway.com\"")

@@ -1,6 +1,7 @@
 package pt.grok.sway.ui.exercises
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -13,7 +14,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -41,23 +44,30 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -68,10 +78,19 @@ import pt.grok.sway.data.ExerciseRun
 import pt.grok.sway.data.ExerciseStep
 import pt.grok.sway.data.TonePlayer
 import pt.grok.sway.ui.LocalApp
+import kotlin.math.PI
 import kotlin.math.ceil
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.sin
 
 private val HoldColors = listOf(Color(0xFFFF6B8B), Color(0xFFFF2D55))
 private val RestColors = listOf(Color(0xFF63E6D4), Color(0xFF00C7BE))
+
+/** Degrees per second for the wavy rings; they turn one way while holding, the other while resting. */
+private const val RING_SPEED = 12.0
+/** Seconds for the spin to ease toward its new direction, like a flywheel reversing. */
+private const val RING_INERTIA = 0.8
 
 /** Guided hold/rest session: a circle grows while holding and shrinks while resting. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -93,6 +112,9 @@ fun ExerciseSessionScreen(nav: NavController) {
     var confirmingExit by remember { mutableStateOf(false) }
     var recorded by remember { mutableStateOf(false) }
     val startedAt = remember { System.currentTimeMillis() }
+    // Ring rotation and spin banked from previous steps, so reversing direction doesn't jump.
+    var ringBaseAngle by remember { mutableDoubleStateOf(0.0) }
+    var ringStartVelocity by remember { mutableDoubleStateOf(RING_SPEED) }
 
     // Keep the screen on and release audio while the session is open.
     val view = LocalView.current
@@ -126,7 +148,21 @@ fun ExerciseSessionScreen(nav: NavController) {
         paused = !paused
     }
 
+    /** Velocity decays exponentially toward the step's target spin; the angle (degrees) is its integral. */
+    fun ringMotion(step: ExerciseStep, at: Long): Pair<Double, Double> {
+        val target = (if (step.action == ExerciseStep.Action.Hold) 1 else -1) * RING_SPEED
+        val t = (if (paused) elapsedBeforePause else elapsedBeforePause + (at - stepStartedAt)) / 1000.0
+        val decay = exp(-t / RING_INERTIA)
+        val angle = ringBaseAngle + target * t + (ringStartVelocity - target) * RING_INERTIA * (1 - decay)
+        return angle to target + (ringStartVelocity - target) * decay
+    }
+
     fun advance(to: Int) {
+        steps.getOrNull(index)?.let {
+            val (angle, velocity) = ringMotion(it, System.currentTimeMillis())
+            ringBaseAngle = angle
+            ringStartVelocity = velocity
+        }
         elapsedBeforePause = 0
         stepStartedAt = System.currentTimeMillis()
         if (to >= steps.size) {
@@ -209,6 +245,7 @@ fun ExerciseSessionScreen(nav: NavController) {
                     secondsLeft = secondsLeft,
                     countingDown = countingDown,
                     paused = paused,
+                    ringAngle = { at -> ringMotion(step, at).first },
                     onPrevious = { advance(index - 1) },
                     onTogglePause = ::togglePause,
                     onNext = { advance(index + 1) },
@@ -243,6 +280,7 @@ private fun Running(
     secondsLeft: Int,
     countingDown: Boolean,
     paused: Boolean,
+    ringAngle: (Long) -> Double,
     onPrevious: () -> Unit,
     onTogglePause: () -> Unit,
     onNext: () -> Unit,
@@ -255,6 +293,11 @@ private fun Running(
         label = "circle",
     )
     val numberScale by animateFloatAsState(if (countingDown) 1.5f else 1f, spring(), label = "number")
+    // Ticks every frame so the rings turn smoothly; only the ring canvas redraws.
+    var frameTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(paused) {
+        while (!paused) withFrameMillis { frameTime = System.currentTimeMillis() }
+    }
 
     Column(
         Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 8.dp),
@@ -278,6 +321,14 @@ private fun Running(
             textAlign = TextAlign.Center,
         )
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            // Fixed-size rings just outside the full circle, counter-rotating; they never scale.
+            // The wave turns inside the path so the gradient stays upright like the circle's.
+            Canvas(Modifier.requiredSize(332.dp)) {
+                val angle = ringAngle(frameTime) * PI / 180
+                val colors = if (isHold) HoldColors else RestColors
+                drawWavyRing(colors, diameter = 300.dp, width = 4.dp, waves = 14, rotation = angle)
+                drawWavyRing(colors, diameter = 332.dp, width = 6.dp, waves = 18, rotation = -angle)
+            }
             Box(
                 Modifier.size(260.dp).scale(circleScale).clip(CircleShape)
                     .background(Brush.verticalGradient(if (isHold) HoldColors else RestColors)),
@@ -294,6 +345,7 @@ private fun Running(
             if (countingDown) stringResource(if (isHold) R.string.relax_in else R.string.squeeze_in, secondsLeft) else "",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.offset(y = 20.dp),
         )
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(32.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -318,6 +370,35 @@ private fun Running(
         ) { Text(stringResource(R.string.terminate)) }
         Spacer(Modifier.height(16.dp))
     }
+}
+
+/** A circle whose edge undulates in a sine wave, stroked with the circle's vertical gradient. */
+private fun DrawScope.drawWavyRing(
+    colors: List<Color>,
+    diameter: Dp,
+    width: Dp,
+    waves: Int,
+    rotation: Double,
+    amplitude: Dp = 4.dp,
+) {
+    val half = diameter.toPx() / 2
+    val amp = amplitude.toPx()
+    val radius = half - amp
+    val segments = 360
+    val path = Path()
+    for (i in 0..segments) {
+        val theta = i.toDouble() / segments * 2 * PI
+        val r = radius + amp * sin(waves * (theta - rotation))
+        val x = (center.x + r * cos(theta)).toFloat()
+        val y = (center.y + r * sin(theta)).toFloat()
+        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+    }
+    path.close()
+    drawPath(
+        path,
+        Brush.verticalGradient(colors, startY = center.y - half, endY = center.y + half),
+        style = Stroke(width.toPx(), cap = StrokeCap.Round),
+    )
 }
 
 @Composable
