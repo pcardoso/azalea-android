@@ -323,14 +323,14 @@ private fun Running(
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
             // Fixed-size rings just outside the full circle, counter-rotating; they never scale.
             // The wave turns inside the path so the gradient stays upright like the circle's.
-            Canvas(Modifier.requiredSize(332.dp)) {
+            Canvas(Modifier.requiredSize(299.dp)) {
                 val angle = ringAngle(frameTime) * PI / 180
                 val colors = if (isHold) HoldColors else RestColors
-                drawWavyRing(colors, diameter = 300.dp, width = 4.dp, waves = 14, rotation = angle)
-                drawWavyRing(colors, diameter = 332.dp, width = 6.dp, waves = 18, rotation = -angle)
+                drawWavyRing(colors, diameter = 270.dp, width = 4.dp, waves = 14, rotation = angle)
+                drawWavyRing(colors, diameter = 299.dp, width = 6.dp, waves = 18, rotation = -angle)
             }
             Box(
-                Modifier.size(260.dp).scale(circleScale).clip(CircleShape)
+                Modifier.size(234.dp).scale(circleScale).clip(CircleShape)
                     .background(Brush.verticalGradient(if (isHold) HoldColors else RestColors)),
             )
             Text(
