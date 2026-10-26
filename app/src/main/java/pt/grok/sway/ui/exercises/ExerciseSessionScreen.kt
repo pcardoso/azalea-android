@@ -2,6 +2,8 @@ package pt.grok.sway.ui.exercises
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -86,6 +88,8 @@ import kotlin.math.sin
 
 private val HoldColors = listOf(Color(0xFFFF6B8B), Color(0xFFFF2D55))
 private val RestColors = listOf(Color(0xFF63E6D4), Color(0xFF00C7BE))
+/** SwiftUI's easeInOut curve, so both apps breathe the same way. */
+private val EaseInOut = CubicBezierEasing(0.42f, 0f, 0.58f, 1f)
 
 /** Degrees per second for the wavy rings; they turn one way while holding, the other while resting. */
 private const val RING_SPEED = 12.0
@@ -287,11 +291,13 @@ private fun Running(
     onTerminate: () -> Unit,
 ) {
     val isHold = step.action == ExerciseStep.Action.Hold
-    val circleScale by animateFloatAsState(
-        targetValue = if (isHold) 1f else 0.45f,
-        animationSpec = tween(durationMillis = (step.duration.coerceAtLeast(1) * 800)),
-        label = "circle",
-    )
+    // Same timing as iOS: an ease-in-out over 80% of the step, for both size and colour.
+    val circleSpec = tween<Float>(durationMillis = step.duration.coerceAtLeast(1) * 800, easing = EaseInOut)
+    val colorSpec = tween<Color>(durationMillis = step.duration.coerceAtLeast(1) * 800, easing = EaseInOut)
+    val circleScale by animateFloatAsState(if (isHold) 1f else 0.45f, circleSpec, label = "circle")
+    val topColor by animateColorAsState((if (isHold) HoldColors else RestColors)[0], colorSpec, label = "top")
+    val bottomColor by animateColorAsState((if (isHold) HoldColors else RestColors)[1], colorSpec, label = "bottom")
+    val colors = listOf(topColor, bottomColor)
     val numberScale by animateFloatAsState(if (countingDown) 1.5f else 1f, spring(), label = "number")
     // Ticks every frame so the rings turn smoothly; only the ring canvas redraws.
     var frameTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -325,13 +331,12 @@ private fun Running(
             // The wave turns inside the path so the gradient stays upright like the circle's.
             Canvas(Modifier.requiredSize(299.dp)) {
                 val angle = ringAngle(frameTime) * PI / 180
-                val colors = if (isHold) HoldColors else RestColors
                 drawWavyRing(colors, diameter = 270.dp, width = 4.dp, waves = 14, rotation = angle)
                 drawWavyRing(colors, diameter = 299.dp, width = 6.dp, waves = 18, rotation = -angle)
             }
             Box(
                 Modifier.size(234.dp).scale(circleScale).clip(CircleShape)
-                    .background(Brush.verticalGradient(if (isHold) HoldColors else RestColors)),
+                    .background(Brush.verticalGradient(colors)),
             )
             Text(
                 "$secondsLeft",
