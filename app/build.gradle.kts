@@ -13,8 +13,8 @@ android {
         applicationId = "pt.grok.android.sway"
         minSdk = 26
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.1.3"
+        versionCode = 6
+        versionName = "1.1.4"
         // release.sh bumps these for every APK published to frontend/public/downloads and writes
         // sway.json there to match: installed apps compare against it on launch.
         buildConfigField("String", "UPDATE_MANIFEST_URL", "\"https://app.gowithsway.com/downloads/sway.json\"")
